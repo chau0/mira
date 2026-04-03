@@ -1,4 +1,4 @@
-# Project: AI Companion
+# Project: Mira
 
 ## Goal
 An AI thinking partner that remembers you across sessions.
