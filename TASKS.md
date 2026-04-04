@@ -79,4 +79,4 @@ Notes:
 - Do not start a new task until the current one is complete or blocked
 - Update status after each task
 - If blocked, explain why clearly
-- If architecture must change, update ARCHITECTURE.md first
+- If architecture must change, update DESIGN.md first
