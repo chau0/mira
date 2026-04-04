@@ -31,7 +31,10 @@ and pushes back — without being asked to.
 
 ## Constraints
 - Stack: Python, python-dotenv
-- LLM provider: GPT-4.1 Mini (Azure OpenAI) or Gemini — TBD based on access. Provider-agnostic design, easy to swap.
+- LLM provider (in order of preference):
+  1. Google Gemini (primary) — free tier, large context window
+  2. GPT-4.1 Mini (fallback) — cheap, OpenAI SDK
+  - Design is provider-agnostic; swap via env var, no code change needed
 - Phase 1: Local CLI, no persistence, no tools
 - Phase 3: Vector store (ChromaDB), persistent memory
 - Phase 4: Telegram or web frontend
