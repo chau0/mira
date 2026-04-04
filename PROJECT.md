@@ -1,7 +1,10 @@
 # Project: Mira
 
 ## Purpose
-Hobby project to learn AI agent techniques by building something real.
+Learn how to build a memory-aware AI agent by building something real.
+
+Mira is the vehicle. The actual goal is to understand and implement:
+how an agent stores, retrieves, and uses memory intelligently in real conversation.
 
 Mira is an AI companion that talks naturally to the user using intelligent memory.
 When the user speaks, Mira auto-detects the right context and responds naturally —
