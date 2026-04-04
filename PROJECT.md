@@ -30,7 +30,8 @@ User is stuck on a decision. Mira references a goal the user mentioned last week
 and pushes back — without being asked to.
 
 ## Constraints
-- Stack: Python, Claude API (claude-sonnet-4-6), python-dotenv
+- Stack: Python, python-dotenv
+- LLM provider: GPT-4.1 Mini (Azure OpenAI) or Gemini — TBD based on access. Provider-agnostic design, easy to swap.
 - Phase 1: Local CLI, no persistence, no tools
 - Phase 3: Vector store (ChromaDB), persistent memory
 - Phase 4: Telegram or web frontend
