@@ -1,50 +1,63 @@
 # Architecture
 
-## Overview
-CLI chatbot. User types → message sent to Claude API with conversation history → response printed.
-No database, no UI, no tools. In-session memory only.
+## Product System
+- Runtime: local web app (FastAPI + static HTML)
+- Model provider: Google Gemini (primary), GPT-4.1 Mini (fallback)
+- Entry points: `main.py` for FastAPI app, `agent.py` for model calls
+- Memory: in-session only for Phase 1 (server-side in-memory dict)
+- Persistence, auth, and deployment remain out of scope for Phase 1
 
 ## Stack
-- Frontend: Terminal (CLI)
-- Backend: Python
-- Database: None (Phase 1); ChromaDB (Phase 3)
-- Auth: None
-- Deployment: Local only (Phase 1)
-- Testing: Manual conversation test
+- Backend: Python, FastAPI, uvicorn
+- Frontend: single static HTML file (vanilla JS, no framework)
+- LLM: Google Gemini via google-generativeai SDK
+- Memory: Python dict (session → conversation history)
+- Database: None (Phase 1)
 
 ## Main Components
 
-### 1. main.py — Conversation Loop
-Purpose: Entry point. Runs the REPL loop (read input → call agent → print response → repeat).
-Inputs: User keyboard input
-Outputs: Printed agent response
+### 1. main.py — FastAPI app
+Purpose: Serves the HTML frontend and handles /chat requests.
+Inputs: POST /chat with { "message": "...", "session_id": "..." }
+Outputs: JSON { "reply": "..." }
 
-### 2. agent.py — Claude API Wrapper
-Purpose: Manages conversation history and calls Claude API.
-Inputs: User message string, existing conversation history
-Outputs: Assistant reply string, updated conversation history
+### 2. agent.py — Gemini wrapper
+Purpose: Manages conversation history per session and calls Gemini API.
+Inputs: message string, session_id, in-memory history store
+Outputs: reply string
+
+### 3. static/index.html — Chat UI
+Purpose: Simple browser chat interface. No framework.
+Inputs: User text input
+Outputs: Sends POST to /chat, displays reply
 
 ## Data Flow
-1. User types a message in terminal
-2. main.py passes message to agent.py
-3. agent.py appends message to history list
-4. agent.py calls Claude API with full history
-5. Claude returns a reply
-6. agent.py appends reply to history, returns it
-7. main.py prints the reply
-8. Loop repeats until user types "exit"
+1. User opens browser at localhost:8000
+2. Types message, clicks Send
+3. JS sends POST /chat with message + session_id
+4. FastAPI passes to agent.py
+5. agent.py appends to session history, calls Gemini
+6. Gemini returns reply
+7. agent.py appends reply to history, returns it
+8. FastAPI returns JSON reply
+9. JS displays reply in chat window
 
 ## Key Decisions
 
 ### Decision 1
-Choice: Keep conversation history as a simple Python list of dicts
-Reason: Simplest implementation; matches Claude API messages format directly
-Alternatives rejected: SQLite (overkill for Phase 1), file-based (unnecessary complexity)
+Choice: Single HTML file served as static asset, no JS framework
+Reason: Fastest to build, no build step, easy to understand
+Alternatives rejected: React/Vue (overkill for Phase 1)
 
 ### Decision 2
-Choice: No streaming
-Reason: Simpler code; latency acceptable for CLI
-Alternatives rejected: Streaming (adds complexity, not needed yet)
+Choice: session_id as random string generated client-side
+Reason: No auth needed, simple, stateless from server perspective
+Alternatives rejected: cookies, JWT (unnecessary complexity)
+
+### Decision 3
+Choice: In-memory dict for history (not database)
+Reason: Simplest, no setup, fine for single user Phase 1
+Alternatives rejected: SQLite, Redis (Phase 3 concern)
 
 ## Simplicity Rules
 - Prefer the simplest implementation that works

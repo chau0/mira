@@ -35,7 +35,7 @@ and pushes back — without being asked to.
   1. Google Gemini (primary) — free tier, large context window
   2. GPT-4.1 Mini (fallback) — cheap, OpenAI SDK
   - Design is provider-agnostic; swap via env var, no code change needed
-- Phase 1: Local CLI, no persistence, no tools
+- Phase 1: Local web app (FastAPI + HTML), no persistence, no tools
 - Phase 3: Vector store (ChromaDB), persistent memory
 - Phase 4: Telegram or web frontend
 
