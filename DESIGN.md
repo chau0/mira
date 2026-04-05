@@ -1,63 +1,128 @@
 # DESIGN — Mira
 
-## Architecture
+## Phase 1 — Basic Conversational Agent
 
-### Stack
-- Backend: Python, FastAPI, uvicorn
-- Frontend: single static HTML file (vanilla JS, no framework)
-- LLM: Google Gemini via google-generativeai SDK
-- Memory: Python dict in server memory (Phase 1); ChromaDB (Phase 3)
-- Database: None (Phase 1)
+### Goal
+Working chat UI in browser. User talks to Mira, Mira remembers the full conversation, responds as a thinking partner.
 
-### Components
+**Done when:** 10-message natural conversation works. Agent references earlier messages. Runs with `uvicorn main:app`.
+
+---
+
+## Stack
+
+| Layer | Choice | Reason |
+|-------|--------|--------|
+| LLM | Claude API (`claude-sonnet-4-6`) | Best reasoning, native tool support for Phase 2+ |
+| Backend | Python + FastAPI | Lightweight, async-ready, easy to extend |
+| Frontend | Single `index.html` (vanilla JS) | No build step, no framework overhead |
+| Memory (Phase 1) | In-memory list on server | Zero setup, sufficient for single user |
+| Memory (Phase 3) | ChromaDB + hybrid search | Persistent, cross-session recall |
+
+---
+
+## File Structure
+
 ```
-static/index.html   ← chat UI (browser)
-main.py             ← FastAPI app, routes
-agent.py            ← Gemini wrapper, history management
-.env                ← GEMINI_API_KEY
-requirements.txt
+ai-companion/
+  main.py           ← FastAPI app + routes
+  agent.py          ← Claude API wrapper + history management
+  static/
+    index.html      ← chat UI (input box, message display)
+  .env              ← ANTHROPIC_API_KEY
+  requirements.txt  ← anthropic, fastapi, uvicorn, python-dotenv
+  DESIGN.md
+  SPEC.md
 ```
 
-## Main Process Logic
+---
 
-### Chat Flow (Phase 1)
+## Mira's Identity
+
+**System prompt:**
+
+```
+You are Mira, an AI thinking partner and personal assistant.
+
+Your role:
+- Help the user think through problems, goals, and decisions
+- Connect what they say now to earlier parts of the conversation when relevant
+- Challenge their thinking when you spot a flaw, contradiction, or blind spot — but only when it matters, not to nitpick
+- Suggest a better approach when you see one, without waiting to be asked
+- Be balanced in tone — direct and honest, but not harsh
+
+How you communicate:
+- Clear and concise. No filler.
+- Ask one focused question when you need clarity
+- Give your actual opinion, not just options
+
+You remember everything said in this conversation. Use it.
+```
+
+**Tone:** Level 3/5 — direct and honest, not harsh.
+**Challenges:** Only when she spots a real problem.
+
+---
+
+## Chat Flow (Phase 1)
+
 ```
 User types message in browser
-  → JS POST /chat { message, session_id }
-  → main.py routes to agent.py
-  → agent.py appends message to session history
-  → agent.py calls Gemini API with full history
-  → Gemini returns reply
-  → agent.py appends reply to history
+  → JS: POST /chat { "message": "..." }
+  → main.py: routes to agent.chat(message)
+  → agent.py: appends { role: "user", content: message } to history
+  → agent.py: calls Claude API with system prompt + full history
+  → Claude returns reply text
+  → agent.py: appends { role: "assistant", content: reply } to history
   → returns reply to main.py
-  → main.py returns JSON { reply }
-  → JS displays reply in chat window
+  → main.py: returns JSON { "reply": "..." }
+  → JS: displays reply in chat window
 ```
 
-### Memory Logic (Phase 1 — naive)
-- history_store: dict { session_id: [messages] }
-- Each message: { "role": "user" | "model", "parts": ["..."] }
-- Full history sent to Gemini on every request
-- History lives only in server memory — lost on restart
+---
 
-### Memory Logic (Phase 3 — intelligent)
+## Memory Design
+
+**Phase 1 — In-memory (server-side):**
+```python
+history = []  # list of { role, content } dicts
+# Lives in server process — cleared on restart
+# Full history sent to Claude on every request
+```
+
+**Phase 3 — Persistent (planned):**
 - Messages embedded and stored in ChromaDB
-- On each user message: retrieve top-K relevant past memories using hybrid search
-- AI layer verifies which retrieved memories are actually relevant
-- Inject verified memories into context before calling LLM
-- See ops/experiments.md for techniques and evaluation
+- Hybrid search (semantic + keyword) to retrieve relevant past context
+- Inject verified memories into prompt before calling Claude
+
+---
+
+## API Design
+
+### `POST /chat`
+```json
+Request:  { "message": "string" }
+Response: { "reply": "string" }
+```
+
+### `GET /`
+Serves `static/index.html`
+
+---
 
 ## Key Decisions
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Frontend | Single HTML file, no framework | Fastest, no build step |
-| Session identity | Random UUID from client | No auth needed, simple |
-| Phase 1 memory | In-memory dict | No setup, fine for single user |
-| LLM provider | Gemini → GPT-4.1 Mini | Free tier, provider-agnostic |
-| History format | Gemini native format | No translation layer needed |
+| LLM provider | Claude (`claude-sonnet-4-6`) | Best reasoning, future tool use |
+| Frontend | Single HTML file, vanilla JS | No build step, stays simple |
+| Session memory | Server-side list (Phase 1) | Zero setup, fine for single user |
+| History format | OpenAI-style `{role, content}` | Claude-compatible, standard |
+| UI framework | None for Phase 1 | Speed — FastAPI for Phase 4 deployment already |
+
+---
 
 ## Constraints
 - One active task at a time
-- Architecture changes must be documented here before implementation
-- Provider swap = env var change only, no code change
+- Architecture changes documented here before implementation
+- Phase 1 scope: no persistent memory, no tools, no auth, no multi-user
