@@ -57,7 +57,7 @@ history_store = {
 - Phase 2 adds compression when history grows too long
 
 **Context compression (Phase 2):**
-When history exceeds ~20 messages, summarize older turns into a single "session summary" message and keep only the last 10 turns in full. This prevents context window overflow without losing continuity.
+When history exceeds ~20 messages, summarize older turns into a single "session summary" message and keep only the last 10 turns in full.
 
 ```
 [System prompt]
@@ -72,94 +72,148 @@ When history exceeds ~20 messages, summarize older turns into a single "session 
 
 **What it is:** Long-term facts about the user that survive across sessions and restarts.
 
-**What it stores:**
-- User goals, values, ongoing projects
-- Important decisions made
-- Patterns Mira has noticed ("you often avoid X")
-- Things the user explicitly asked Mira to remember
+**Core insight: memory is an index, not a storage dump.**
+- `MEMORY_INDEX.md` is always loaded — but it's only pointers (~150 chars/line)
+- Actual content lives in topic files, fetched only when needed
+- Conversation logs are never read wholesale — only grep'd if needed
 
-**What it does NOT store:**
-- Full conversation transcripts (too noisy)
-- Temporary task state (doesn't persist)
-- Information that changes frequently
+### What to store vs not store
+
+**Store:**
+- Goals with specific targets + deadlines
+- Stated values and non-negotiables
+- Patterns observed across multiple sessions
+- Explicit "remember this" requests
+
+**Never store:**
+- Conversation summaries (derivable)
+- Temporary states ("feeling stressed today")
+- Things the user can easily re-state
+- Anything derivable from the current conversation
+
+**The test:** if it can be re-derived by asking the user or reading the conversation, don't persist it. Persist only what is hard to reconstruct and has lasting value.
 
 ---
 
 ## Persistent Memory Architecture
 
-### Storage
-
-Each memory = one file on disk with a structured header:
+### Storage Structure
 
 ```
 memory/
-  user_goals.md
+  MEMORY_INDEX.md     ← always loaded, pointers only (~150 chars/line)
+  user_goals.md       ← topic file, loaded on demand
   user_values.md
-  project_mira.md
-  feedback_avoid_X.md
-  MEMORY_INDEX.md    ← index of all memory files
+  observed_patterns.md
+  key_decisions.md
 ```
 
-Each memory file:
+**MEMORY_INDEX.md format** (index only — never write content here):
+```markdown
+- [User Goals](user_goals.md) — financial freedom by 2027, son's education by age 5
+- [User Values](user_values.md) — autonomy, family, building over consuming
+- [Observed Patterns](observed_patterns.md) — avoids committing to deadlines, strong on vision
+- [Key Decisions](key_decisions.md) — chose Mira as first product, decided against agency model
+```
+
+**Topic file format:**
 ```markdown
 ---
 name: User Goals
-description: User's active goals — financial freedom, son's education
+description: User's active goals with targets and deadlines
 type: user
 updated: 2026-04-05
 ---
 
-Goal 1: Financial freedom by 2027 via product income...
-Goal 2: Raise son with curiosity, EQ, and resilience...
+Goal 1: Financial freedom — $3,500/mo product income by 2027-12-31
+Goal 2: Raise son with curiosity, EQ, resilience — foundation set by age 5
+```
+
+### Write Discipline
+
+**Always: write to topic file first, then update index.**
+
+Never:
+- Write content into the index
+- Append to files without checking for existing entries on the same topic
+- Create a new file if one already covers the topic — update instead
+
+```
+New fact to remember:
+  1. Does a relevant topic file exist? → update it
+  2. No file exists? → create topic file, then add pointer to MEMORY_INDEX.md
+  3. Never write the content into MEMORY_INDEX.md
 ```
 
 ### Retrieval — Metadata-First
 
-**Never load all memories at once.** Scan index first, then select.
-
-**Step-by-step retrieval on each user message:**
+**Never load all memories at once.** Index first, content second.
 
 ```
 1. User sends message
-2. Read MEMORY_INDEX.md (file names + one-line descriptions only)
-3. Call Claude (cheap/fast) with: 
-   "Given this user message, which of these memory files are relevant? Pick max 3."
-4. Read only the selected memory files
-5. Inject into prompt as [Relevant context] block
-6. Call main Claude with full context
+2. Load MEMORY_INDEX.md (always in context — pointers only)
+3. Call Claude (cheap model) with:
+   "Which of these memory files are clearly relevant to this message? Pick max 3."
+4. Read only the selected topic files
+5. Inject as [Relevant context] block
+6. Treat injected memories as hints, not facts — verify against current conversation
+7. Call main Claude with full context
 ```
 
-**Why metadata-first:**
-- Avoids loading irrelevant memory
-- Keeps context clean and focused
-- Same pattern used in Claude Code's production memory system
+**Retrieval is skeptical:**
+Memory is a hint, not truth. If the user says something that contradicts a memory, the current session wins. Update the memory file — don't trust the old record blindly.
 
 ### Deduplication
 
-Track which memories were already injected in this session. Don't reinject them on every turn — only load new ones.
+Track what's already loaded this session. Don't reinject the same file on every turn.
 
 ```python
-session_loaded_memories = set()  # track by file name
+session_loaded_memories = set()
 
 def get_relevant_memories(message, session_loaded):
     index = read_memory_index()
-    selected = select_relevant(message, index)  # Claude call
-    new_memories = [m for m in selected if m not in session_loaded]
-    session_loaded.update(new_memories)
-    return read_memory_files(new_memories)
+    selected = select_relevant(message, index)  # cheap Claude call
+    new_only = [m for m in selected if m not in session_loaded]
+    session_loaded.update(new_only)
+    return read_memory_files(new_only)
 ```
 
-### Writing New Memories
+---
 
-Mira writes memories when:
-1. User explicitly says "remember this"
-2. Mira detects a significant fact worth keeping (goal change, major decision)
-3. End-of-session: summarize key insights from the conversation
+## autoDream — Background Memory Rewriting (Phase 3+)
 
-Writing rules:
-- Update existing file if topic already exists — don't duplicate
-- Keep entries concise — memory files should be scannable, not verbose
-- Always update `MEMORY_INDEX.md` when adding a new file
+**The problem without it:** memory accumulates, duplicates, contradicts itself, and becomes noise over weeks.
+
+**The solution:** a background rewrite pass after each session ends.
+
+Run as a separate, isolated agent with limited tools (read + write memory files only):
+
+```
+After session ends:
+  1. Read all memory files
+  2. Merge duplicates ("said X in 3 different places" → one canonical entry)
+  3. Convert vague → specific ("wants freedom" → "target: $3,500/mo by 2027-12")
+  4. Resolve contradictions (newer session wins, unless it was a passing remark)
+  5. Prune stale entries (goals achieved, decisions reversed)
+  6. Rebuild MEMORY_INDEX.md from updated files
+  7. Enforce index line cap (~150 chars/line, truncate if over)
+```
+
+**Why isolated:** runs in a forked process with no access to main conversation context. Prevents corruption of active session state. Limited tools = limited blast radius.
+
+**Result:** memory is continuously edited, not appended. Quality stays high over time.
+
+---
+
+## Staleness Handling
+
+Memory about user state decays. Old memories may be wrong.
+
+Rules:
+- If memory ≠ what user says now → memory is wrong, update it
+- Code-derived or conversation-derived facts are never stored (they're always fresh)
+- Index is forcibly truncated if it grows too long — old entries get pruned
+- `updated` date in each file signals how fresh it is — treat old entries with less confidence
 
 ---
 
@@ -183,7 +237,8 @@ Writing rules:
 **Phase 3 (with persistent memory):**
 ```
 [System prompt]
-[Relevant persistent memories — max 3 files, selected per message]
+[MEMORY_INDEX.md — always, pointers only]
+[Selected topic files — max 3, on-demand]
 [Session summary — compressed older turns]
 [Last N messages — full]
 [User message]
@@ -197,36 +252,40 @@ Writing rules:
 User sends message
 │
 ├── Is it a command? ("remember this", "forget this")
-│   └── Write/delete memory file directly
+│   └── Write/delete topic file → update index
 │
-├── Does session history exist?
-│   ├── Yes → use it (Phase 1/2)
+├── Session history loaded?
+│   ├── Yes → use it
 │   └── No → fresh session
 │
-└── Is persistent memory enabled? (Phase 3)
-    ├── Scan MEMORY_INDEX.md
-    ├── Select relevant files (Claude call)
-    ├── Skip already-loaded files
-    └── Inject selected memories into prompt
+└── Persistent memory enabled? (Phase 3)
+    ├── Load MEMORY_INDEX.md (always in context)
+    ├── Cheap Claude call: pick max 3 relevant files
+    ├── Skip already-loaded files this session
+    ├── Inject selected files as hints
+    └── Verify against current conversation before acting on memories
 ```
 
 ---
 
 ## Implementation Roadmap
 
-| Phase | Memory capability | Implementation |
-|-------|------------------|----------------|
+| Phase | Memory capability | Key implementation |
+|-------|------------------|--------------------|
 | Phase 1 | Session memory (in-memory dict) | `history_store = {}` in agent.py |
 | Phase 2 | Session compression | Summarize when history > 20 messages |
-| Phase 3 | Persistent memory + retrieval | Files on disk + metadata-first retrieval |
+| Phase 3 | Persistent memory + metadata-first retrieval | Files on disk, index pointer model |
+| Phase 3+ | autoDream rewrite pass | Isolated background agent, runs post-session |
 | Phase 4 | Vector search | ChromaDB embeddings for semantic retrieval |
 
 ---
 
 ## Key Principles
 
-1. **Small and precise over large and noisy** — inject 3 relevant memories, not 20
-2. **Metadata before content** — scan index first, read files second
-3. **Deduplicate** — never reinject what's already in context
-4. **Separate concerns** — instruction memory, session memory, and persistent memory solve different problems
-5. **Write-on-significance** — don't log everything, log what matters
+1. **Index = pointers, not content** — MEMORY_INDEX.md is always loaded but never holds facts
+2. **Metadata before content** — scan index first, read topic files second
+3. **Deduplicate** — never reinject what's already in context this session
+4. **Write discipline** — topic file first, index update second, never the reverse
+5. **Rewrite, don't append** — autoDream keeps memory quality high over time
+6. **Staleness is real** — old memory is a hint, current session wins on conflict
+7. **If derivable, don't persist** — only store what can't be reconstructed easily
