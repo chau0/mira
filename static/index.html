@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mira</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3efe6;
+      --panel: rgba(255, 252, 246, 0.92);
+      --panel-border: rgba(100, 75, 44, 0.18);
+      --text: #1f1a14;
+      --muted: #6b5f50;
+      --accent: #b65c2f;
+      --accent-strong: #91431c;
+      --user-bubble: #1f1a14;
+      --user-text: #f8f2e7;
+      --assistant-bubble: #efe2cb;
+      --assistant-text: #2d241a;
+      --shadow: 0 24px 60px rgba(70, 45, 17, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(238, 163, 88, 0.28), transparent 32%),
+        radial-gradient(circle at top right, rgba(124, 157, 121, 0.2), transparent 30%),
+        linear-gradient(180deg, #f6f1e7 0%, #ece1cf 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .shell {
+      width: min(880px, 100%);
+      min-height: min(88vh, 820px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 28px 28px 18px;
+      border-bottom: 1px solid rgba(100, 75, 44, 0.12);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 3vw, 3rem);
+      line-height: 0.95;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      max-width: 42rem;
+      font-size: 1rem;
+    }
+
+    .messages {
+      padding: 24px 28px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .message {
+      max-width: min(78%, 640px);
+      padding: 14px 16px;
+      border-radius: 18px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: rise 180ms ease forwards;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      color: var(--user-text);
+      border-bottom-right-radius: 6px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--assistant-bubble);
+      color: var(--assistant-text);
+      border-bottom-left-radius: 6px;
+    }
+
+    .composer {
+      padding: 18px 22px 22px;
+      border-top: 1px solid rgba(100, 75, 44, 0.12);
+      background: linear-gradient(180deg, rgba(255, 251, 244, 0.35), rgba(255, 248, 239, 0.92));
+    }
+
+    form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      resize: none;
+      min-height: 60px;
+      max-height: 180px;
+      padding: 16px 18px;
+      border: 1px solid rgba(100, 75, 44, 0.18);
+      border-radius: 18px;
+      font: inherit;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.72);
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: rgba(182, 92, 47, 0.42);
+      box-shadow: 0 0 0 4px rgba(182, 92, 47, 0.12);
+    }
+
+    button {
+      align-self: end;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 22px;
+      min-height: 60px;
+      font: 600 0.98rem/1 "Helvetica Neue", Arial, sans-serif;
+      color: #fff8ef;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 20px;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    @keyframes rise {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 700px) {
+      body {
+        padding: 12px;
+      }
+
+      .shell {
+        min-height: 100vh;
+        border-radius: 22px;
+      }
+
+      .header,
+      .messages,
+      .composer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      form {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .message {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <p class="eyebrow">Local Thinking Partner</p>
+      <h1>Mira</h1>
+      <p class="subtitle">A memory-aware AI conversation space for the current browser session.</p>
+    </header>
+
+    <section class="messages" id="messages" aria-live="polite" aria-label="Conversation">
+      <div class="message assistant">Bring me the problem you are actually trying to solve.</div>
+    </section>
+
+    <section class="composer">
+      <form id="chat-form">
+        <label class="sr-only" for="message-input" hidden>Message</label>
+        <textarea id="message-input" name="message" placeholder="Type a message to Mira..." required></textarea>
+        <button type="submit" id="send-button">Send</button>
+      </form>
+      <div class="status" id="status"></div>
+    </section>
+  </main>
+
+  <script>
+    const sessionId = crypto.randomUUID();
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("message-input");
+    const messages = document.getElementById("messages");
+    const sendButton = document.getElementById("send-button");
+    const status = document.getElementById("status");
+
+    function appendMessage(role, text) {
+      const node = document.createElement("div");
+      node.className = `message ${role}`;
+      node.textContent = text;
+      messages.appendChild(node);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function setBusy(isBusy, message = "") {
+      sendButton.disabled = isBusy;
+      input.disabled = isBusy;
+      status.textContent = message;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const message = input.value.trim();
+      if (!message) {
+        status.textContent = "Enter a message first.";
+        return;
+      }
+
+      appendMessage("user", message);
+      input.value = "";
+      input.style.height = "auto";
+      setBusy(true, "Mira is thinking...");
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message,
+            session_id: sessionId
+          })
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || "Request failed.");
+        }
+
+        appendMessage("assistant", payload.reply);
+        status.textContent = "";
+      } catch (error) {
+        appendMessage("assistant", "I hit a problem reaching the model. Check the server and try again.");
+        status.textContent = error.message;
+      } finally {
+        setBusy(false, status.textContent);
+        input.focus();
+      }
+    });
+
+    input.addEventListener("input", () => {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    });
+
+    input.focus();
+  </script>
+</body>
+</html>

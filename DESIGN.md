@@ -13,10 +13,10 @@ Working chat UI in browser. User talks to Mira, Mira remembers the full conversa
 
 | Layer | Choice | Reason |
 |-------|--------|--------|
-| LLM | Claude API (`claude-sonnet-4-6`) | Best reasoning, native tool support for Phase 2+ |
+| LLM | Gemini API (`gemini-2.5-flash`) | Fast default model, simple SDK, easy local iteration |
 | Backend | Python + FastAPI | Lightweight, async-ready, easy to extend |
 | Frontend | Single `index.html` (vanilla JS) | No build step, no framework overhead |
-| Memory (Phase 1) | In-memory list on server | Zero setup, sufficient for single user |
+| Memory (Phase 1) | In-memory session store on server | Zero setup, sufficient for single user |
 | Memory (Phase 3) | ChromaDB + hybrid search | Persistent, cross-session recall |
 
 ---
@@ -26,11 +26,11 @@ Working chat UI in browser. User talks to Mira, Mira remembers the full conversa
 ```
 ai-companion/
   main.py           ← FastAPI app + routes
-  agent.py          ← Claude API wrapper + history management
+  agent.py          ← Gemini API wrapper + history management
   static/
     index.html      ← chat UI (input box, message display)
-  .env              ← ANTHROPIC_API_KEY
-  requirements.txt  ← anthropic, fastapi, uvicorn, python-dotenv
+  .env              ← GEMINI_API_KEY
+  requirements.txt  ← google-genai, fastapi, uvicorn, python-dotenv
   DESIGN.md
   SPEC.md
 ```
@@ -68,12 +68,12 @@ You remember everything said in this conversation. Use it.
 
 ```
 User types message in browser
-  → JS: POST /chat { "message": "..." }
-  → main.py: routes to agent.chat(message)
-  → agent.py: appends { role: "user", content: message } to history
-  → agent.py: calls Claude API with system prompt + full history
-  → Claude returns reply text
-  → agent.py: appends { role: "assistant", content: reply } to history
+  → JS: POST /chat { "message": "...", "session_id": "..." }
+  → main.py: routes to agent.chat(message, session_id, history_store)
+  → agent.py: appends { role: "user", content: message } to session history
+  → agent.py: calls Gemini API with system prompt + full session history
+  → Gemini returns reply text
+  → agent.py: appends { role: "assistant", content: reply } to session history
   → returns reply to main.py
   → main.py: returns JSON { "reply": "..." }
   → JS: displays reply in chat window
@@ -85,9 +85,11 @@ User types message in browser
 
 **Phase 1 — In-memory (server-side):**
 ```python
-history = []  # list of { role, content } dicts
+history_store = {
+    "session-id": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+}
 # Lives in server process — cleared on restart
-# Full history sent to Claude on every request
+# Full session history sent to Gemini on every request
 ```
 
 **Phase 3 — Persistent (planned):**
@@ -101,7 +103,7 @@ history = []  # list of { role, content } dicts
 
 ### `POST /chat`
 ```json
-Request:  { "message": "string" }
+Request:  { "message": "string", "session_id": "string" }
 Response: { "reply": "string" }
 ```
 
@@ -114,10 +116,10 @@ Serves `static/index.html`
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| LLM provider | Claude (`claude-sonnet-4-6`) | Best reasoning, future tool use |
+| LLM provider | Gemini (`gemini-2.5-flash`) | Good local default with a minimal SDK |
 | Frontend | Single HTML file, vanilla JS | No build step, stays simple |
-| Session memory | Server-side list (Phase 1) | Zero setup, fine for single user |
-| History format | OpenAI-style `{role, content}` | Claude-compatible, standard |
+| Session memory | Server-side dict keyed by `session_id` | Zero setup, isolates browser sessions |
+| History format | Internal `{role, content}` mapped to Gemini `contents` | Keeps app code provider-agnostic |
 | UI framework | None for Phase 1 | Speed — FastAPI for Phase 4 deployment already |
 
 ---
