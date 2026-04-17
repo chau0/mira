@@ -7,6 +7,7 @@
   <style>
     :root {
       color-scheme: light;
+      --app-height: 100vh;
       --bg: #f3efe6;
       --panel: rgba(255, 252, 246, 0.92);
       --panel-border: rgba(100, 75, 44, 0.18);
@@ -21,13 +22,25 @@
       --shadow: 0 24px 60px rgba(70, 45, 17, 0.14);
     }
 
+    @supports (height: 100svh) {
+      :root {
+        --app-height: 100svh;
+      }
+    }
+
+    @supports (height: 100dvh) {
+      :root {
+        --app-height: 100dvh;
+      }
+    }
+
     * {
       box-sizing: border-box;
     }
 
     body {
       margin: 0;
-      min-height: 100vh;
+      min-height: var(--app-height);
       font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
       color: var(--text);
       background:
@@ -42,7 +55,8 @@
 
     .shell {
       width: min(880px, 100%);
-      min-height: min(88vh, 820px);
+      height: min(calc(var(--app-height) - 48px), 820px);
+      min-height: min(calc(var(--app-height) - 48px), 820px);
       display: grid;
       grid-template-rows: auto 1fr auto;
       background: var(--panel);
@@ -116,15 +130,40 @@
     }
 
     .composer {
-      padding: 18px 22px 22px;
+      padding: 18px 22px calc(22px + env(safe-area-inset-bottom, 0px));
       border-top: 1px solid rgba(100, 75, 44, 0.12);
       background: linear-gradient(180deg, rgba(255, 251, 244, 0.35), rgba(255, 248, 239, 0.92));
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
     }
 
     form {
       display: grid;
+      gap: 10px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .input-row {
+      display: grid;
       grid-template-columns: 1fr auto;
       gap: 12px;
+      align-items: end;
     }
 
     textarea {
@@ -139,6 +178,24 @@
       color: var(--text);
       background: rgba(255, 255, 255, 0.72);
       outline: none;
+    }
+
+    select {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid rgba(100, 75, 44, 0.18);
+      border-radius: 12px;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 0.92rem;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.72);
+      outline: none;
+    }
+
+    select:focus {
+      border-color: rgba(182, 92, 47, 0.42);
+      box-shadow: 0 0 0 4px rgba(182, 92, 47, 0.12);
     }
 
     textarea:focus {
@@ -185,31 +242,71 @@
 
     @media (max-width: 700px) {
       body {
-        padding: 12px;
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
       }
 
       .shell {
-        min-height: 100vh;
-        border-radius: 22px;
+        width: 100%;
+        height: var(--app-height);
+        min-height: var(--app-height);
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        box-shadow: none;
       }
 
-      .header,
-      .messages,
+      .header {
+        padding: 16px 16px 12px;
+      }
+
+      h1 {
+        font-size: clamp(1.75rem, 8.2vw, 2.2rem);
+      }
+
+      .subtitle {
+        font-size: 0.95rem;
+        margin-top: 8px;
+      }
+
+      .messages {
+        padding: 14px 16px;
+        gap: 10px;
+      }
+
       .composer {
-        padding-left: 18px;
-        padding-right: 18px;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
       }
 
       form {
+        gap: 8px;
+      }
+
+      .controls {
         grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .input-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
       }
 
       button {
         width: 100%;
+        min-height: 48px;
       }
 
       .message {
         max-width: 100%;
+        padding: 12px 14px;
+      }
+
+      textarea {
+        min-height: 52px;
+        max-height: 120px;
+        padding: 13px 15px;
       }
     }
   </style>
@@ -228,28 +325,135 @@
 
     <section class="composer">
       <form id="chat-form">
-        <label class="sr-only" for="message-input" hidden>Message</label>
-        <textarea id="message-input" name="message" placeholder="Type a message to Mira..." required></textarea>
-        <button type="submit" id="send-button">Send</button>
+        <div class="controls">
+          <label class="control" for="provider-input">
+            Provider
+            <select id="provider-input" name="provider"></select>
+          </label>
+          <label class="control" for="model-input">
+            Model
+            <select id="model-input" name="model"></select>
+          </label>
+        </div>
+        <div class="input-row">
+          <label class="sr-only" for="message-input" hidden>Message</label>
+          <textarea id="message-input" name="message" placeholder="Type a message to Mira..." required></textarea>
+          <button type="submit" id="send-button">Send</button>
+        </div>
       </form>
       <div class="status" id="status"></div>
     </section>
   </main>
 
   <script>
-    const sessionId = crypto.randomUUID();
+    const sessionId = crypto.randomUUID?.() ||
+      "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
     const form = document.getElementById("chat-form");
+    const providerInput = document.getElementById("provider-input");
+    const modelInput = document.getElementById("model-input");
     const input = document.getElementById("message-input");
     const messages = document.getElementById("messages");
     const sendButton = document.getElementById("send-button");
     const status = document.getElementById("status");
+    let appConfig = null;
+
+    function fallbackConfig() {
+      return {
+        providers: ["gemini", "openrouter"],
+        default_provider: "openrouter",
+        provider_models: {
+          gemini: ["gemini-2.5-flash"],
+          openrouter: ["google/gemma-4-31b-it:free"]
+        },
+        default_models: {
+          gemini: "gemini-2.5-flash",
+          openrouter: "google/gemma-4-31b-it:free"
+        },
+        openrouter_reasoning_models: []
+      };
+    }
+
+    function uniqueStrings(values) {
+      return [...new Set(values.filter((value) => typeof value === "string" && value.trim().length > 0))];
+    }
+
+    function normalizeConfig(rawConfig) {
+      const fallback = fallbackConfig();
+      const requestedProviders = uniqueStrings(rawConfig?.providers || []);
+      const providers = requestedProviders.length > 0 ? requestedProviders : fallback.providers;
+      const defaultProvider = providers.includes(rawConfig?.default_provider)
+        ? rawConfig.default_provider
+        : providers[0];
+      const providerModels = {};
+      for (const provider of providers) {
+        const configured = uniqueStrings(rawConfig?.provider_models?.[provider] || []);
+        providerModels[provider] = configured.length > 0 ? configured : fallback.provider_models[provider] || [];
+      }
+      const defaultModels = {};
+      for (const provider of providers) {
+        const preferred = rawConfig?.default_models?.[provider];
+        defaultModels[provider] = providerModels[provider].includes(preferred)
+          ? preferred
+          : providerModels[provider][0];
+      }
+      return {
+        providers,
+        default_provider: defaultProvider,
+        provider_models: providerModels,
+        default_models: defaultModels,
+        openrouter_reasoning_models: uniqueStrings(rawConfig?.openrouter_reasoning_models || [])
+      };
+    }
+
+    function updateModelOptions(provider, requestedModel = "") {
+      const models = appConfig.provider_models[provider] || [];
+      modelInput.innerHTML = "";
+      for (const model of models) {
+        const option = document.createElement("option");
+        option.value = model;
+        option.textContent = model;
+        modelInput.appendChild(option);
+      }
+      const nextModel = models.includes(requestedModel)
+        ? requestedModel
+        : appConfig.default_models[provider] || models[0] || "";
+      modelInput.value = nextModel;
+    }
+
+    function applyConfigToForm() {
+      providerInput.innerHTML = "";
+      for (const provider of appConfig.providers) {
+        const option = document.createElement("option");
+        option.value = provider;
+        option.textContent = provider;
+        providerInput.appendChild(option);
+      }
+      providerInput.value = appConfig.default_provider;
+      updateModelOptions(appConfig.default_provider);
+    }
+
+    async function loadRuntimeConfig() {
+      try {
+        const response = await fetch("/config");
+        if (!response.ok) {
+          throw new Error("Failed to load model configuration.");
+        }
+        const payload = await response.json();
+        appConfig = normalizeConfig(payload);
+      } catch (error) {
+        appConfig = normalizeConfig(fallbackConfig());
+        status.textContent = "Using fallback model config. Check server /config.";
+      }
+      applyConfigToForm();
+    }
 
     function appendMessage(role, text) {
       const node = document.createElement("div");
       node.className = `message ${role}`;
       node.textContent = text;
       messages.appendChild(node);
-      messages.scrollTop = messages.scrollHeight;
+      scrollMessagesToBottom();
     }
 
     function setBusy(isBusy, message = "") {
@@ -258,18 +462,40 @@
       status.textContent = message;
     }
 
+    function scrollMessagesToBottom() {
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function syncViewportHeight() {
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+      scrollMessagesToBottom();
+    }
+
+    function resizeInput() {
+      const mobileMaxHeight = window.matchMedia("(max-width: 700px)").matches ? 120 : 180;
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, mobileMaxHeight)}px`;
+    }
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       const message = input.value.trim();
+      const provider = providerInput.value;
+      const model = modelInput.value;
       if (!message) {
         status.textContent = "Enter a message first.";
+        return;
+      }
+      if (!provider || !model) {
+        status.textContent = "Select a provider and model first.";
         return;
       }
 
       appendMessage("user", message);
       input.value = "";
-      input.style.height = "auto";
+      resizeInput();
       setBusy(true, "Mira is thinking...");
 
       try {
@@ -280,7 +506,9 @@
           },
           body: JSON.stringify({
             message,
-            session_id: sessionId
+            session_id: sessionId,
+            provider,
+            model
           })
         });
 
@@ -297,15 +525,42 @@
       } finally {
         setBusy(false, status.textContent);
         input.focus();
+        scrollMessagesToBottom();
       }
     });
 
     input.addEventListener("input", () => {
-      input.style.height = "auto";
-      input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+      resizeInput();
     });
 
-    input.focus();
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
+        return;
+      }
+      event.preventDefault();
+      if (sendButton.disabled) {
+        return;
+      }
+      form.requestSubmit();
+    });
+
+    providerInput.addEventListener("change", () => {
+      updateModelOptions(providerInput.value);
+    });
+
+    window.addEventListener("resize", syncViewportHeight, { passive: true });
+    window.addEventListener("orientationchange", syncViewportHeight, { passive: true });
+    window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
+    window.visualViewport?.addEventListener("scroll", syncViewportHeight, { passive: true });
+
+    async function init() {
+      await loadRuntimeConfig();
+      syncViewportHeight();
+      resizeInput();
+      input.focus();
+    }
+
+    init();
   </script>
 </body>
 </html>
