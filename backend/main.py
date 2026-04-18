@@ -79,6 +79,7 @@ class RuntimeConfigResponse(BaseModel):
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+FRONTEND_DIST_DIR = BASE_DIR.parent / "mira-ui" / "dist"
 
 
 def _configure_logging() -> None:
@@ -120,12 +121,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mira", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if (FRONTEND_DIST_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="frontend-assets")
 
 history_store: HistoryStore = {}
 
 
 @app.get("/", response_class=FileResponse)
 async def read_index() -> FileResponse:
+    if (FRONTEND_DIST_DIR / "index.html").exists():
+        return FileResponse(FRONTEND_DIST_DIR / "index.html")
+
     return FileResponse(STATIC_DIR / "index.html")
 
 

@@ -2,6 +2,28 @@
 
 Memory-aware local AI chat companion.
 
+## Frontend
+
+The React UI lives in [`../mira-ui`](../mira-ui).
+
+Run it locally with:
+
+```bash
+cd ../mira-ui
+npm install
+npm run dev
+```
+
+Build it for the backend-served app with:
+
+```bash
+cd ../mira-ui
+npm run build
+```
+
+The FastAPI backend serves `../mira-ui/dist/index.html` at `/` when that build exists.
+If no React build is present yet, it falls back to the legacy `static/index.html`.
+
 Set up and run with the unified `mira.sh` script:
 
 ```bash

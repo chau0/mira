@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <title>Mira</title>
   <style>
     :root {
@@ -96,7 +96,7 @@
     }
 
     .messages {
-      padding: 24px 28px;
+      padding: 24px 28px 24px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -169,8 +169,8 @@
     textarea {
       width: 100%;
       resize: none;
-      min-height: 60px;
       max-height: 180px;
+      overflow-y: hidden;
       padding: 16px 18px;
       border: 1px solid rgba(100, 75, 44, 0.18);
       border-radius: 18px;
@@ -203,26 +203,63 @@
       box-shadow: 0 0 0 4px rgba(182, 92, 47, 0.12);
     }
 
-    button {
+    #send-button {
       align-self: end;
       border: 0;
-      border-radius: 999px;
-      padding: 0 22px;
-      min-height: 60px;
-      font: 600 0.98rem/1 "Helvetica Neue", Arial, sans-serif;
+      border-radius: 50%;
+      padding: 0;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: #fff8ef;
       background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
       cursor: pointer;
       transition: transform 120ms ease, opacity 120ms ease;
     }
 
-    button:hover:not(:disabled) {
+    #send-button:hover:not(:disabled) {
       transform: translateY(-1px);
     }
 
-    button:disabled {
+    #send-button:disabled {
       opacity: 0.6;
       cursor: wait;
+    }
+
+    .controls-toggle-bar {
+      display: none;
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+
+    .controls-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border: 1px solid rgba(100, 75, 44, 0.22);
+      border-radius: 20px;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.72);
+      cursor: pointer;
+      transition: border-color 120ms ease, color 120ms ease;
+    }
+
+    .controls-toggle-btn:hover {
+      border-color: rgba(182, 92, 47, 0.42);
+      color: var(--accent);
+    }
+
+    .controls-collapsible {
+      /* desktop: always visible, no transition needed */
     }
 
     .status {
@@ -241,10 +278,20 @@
     }
 
     @media (max-width: 700px) {
+      html {
+        overflow: hidden;
+        height: 100%;
+      }
+
       body {
         padding: 0;
         align-items: stretch;
         justify-content: stretch;
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        height: var(--app-height);
+        min-height: unset;
       }
 
       .shell {
@@ -271,7 +318,7 @@
       }
 
       .messages {
-        padding: 14px 16px;
+        padding: 14px 16px 14px;
         gap: 10px;
       }
 
@@ -283,19 +330,36 @@
         gap: 8px;
       }
 
+      .controls-toggle-bar {
+        display: flex;
+      }
+
+      .controls-collapsible {
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transition: max-height 240ms ease, opacity 200ms ease;
+        margin-bottom: 0;
+      }
+
+      .controls-collapsible.open {
+        max-height: 220px;
+        opacity: 1;
+        margin-bottom: 8px;
+      }
+
       .controls {
         grid-template-columns: 1fr;
         gap: 8px;
       }
 
       .input-row {
-        grid-template-columns: 1fr;
         gap: 10px;
       }
 
-      button {
-        width: 100%;
-        min-height: 48px;
+      #send-button {
+        width: 48px;
+        height: 48px;
       }
 
       .message {
@@ -325,20 +389,30 @@
 
     <section class="composer">
       <form id="chat-form">
-        <div class="controls">
-          <label class="control" for="provider-input">
-            Provider
-            <select id="provider-input" name="provider"></select>
-          </label>
-          <label class="control" for="model-input">
+        <div class="controls-toggle-bar">
+          <button type="button" class="controls-toggle-btn" id="controls-toggle" aria-expanded="false" aria-controls="controls-panel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Model
-            <select id="model-input" name="model"></select>
-          </label>
+          </button>
+        </div>
+        <div class="controls-collapsible" id="controls-panel">
+          <div class="controls">
+            <label class="control" for="provider-input">
+              Provider
+              <select id="provider-input" name="provider"></select>
+            </label>
+            <label class="control" for="model-input">
+              Model
+              <select id="model-input" name="model"></select>
+            </label>
+          </div>
         </div>
         <div class="input-row">
           <label class="sr-only" for="message-input" hidden>Message</label>
           <textarea id="message-input" name="message" placeholder="Type a message to Mira..." required></textarea>
-          <button type="submit" id="send-button">Send</button>
+          <button type="submit" id="send-button" aria-label="Send message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
         </div>
       </form>
       <div class="status" id="status"></div>
@@ -354,6 +428,7 @@
     const modelInput = document.getElementById("model-input");
     const input = document.getElementById("message-input");
     const messages = document.getElementById("messages");
+    const composer = document.querySelector(".composer");
     const sendButton = document.getElementById("send-button");
     const status = document.getElementById("status");
     let appConfig = null;
@@ -453,7 +528,7 @@
       node.className = `message ${role}`;
       node.textContent = text;
       messages.appendChild(node);
-      scrollMessagesToBottom();
+      anchorLatestMessage();
     }
 
     function setBusy(isBusy, message = "") {
@@ -466,16 +541,36 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    function syncViewportHeight() {
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+    function getMessageAnchorGap() {
+      const baseGap = window.matchMedia("(max-width: 700px)").matches ? 16 : 20;
+      return (composer?.offsetHeight || 0) + baseGap;
+    }
+
+    function syncMessageViewportPadding() {
+      const isMobile = window.matchMedia("(max-width: 700px)").matches;
+      const topPadding = isMobile ? 14 : 24;
+      const sidePadding = isMobile ? 16 : 28;
+      messages.style.padding = `${topPadding}px ${sidePadding}px ${getMessageAnchorGap()}px`;
+    }
+
+    function anchorLatestMessage() {
+      syncMessageViewportPadding();
       scrollMessagesToBottom();
     }
 
+    function syncViewportHeight() {
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${Math.round(h)}px`);
+      requestAnimationFrame(anchorLatestMessage);
+    }
+
     function resizeInput() {
-      const mobileMaxHeight = window.matchMedia("(max-width: 700px)").matches ? 120 : 180;
-      input.style.height = "auto";
-      input.style.height = `${Math.min(input.scrollHeight, mobileMaxHeight)}px`;
+      const isMobile = window.matchMedia("(max-width: 700px)").matches;
+      const minH = isMobile ? 52 : 60;
+      const maxH = isMobile ? 120 : 180;
+      input.style.height = "0";
+      input.style.height = `${Math.min(Math.max(input.scrollHeight, minH), maxH)}px`;
+      requestAnimationFrame(anchorLatestMessage);
     }
 
     form.addEventListener("submit", async (event) => {
@@ -525,7 +620,7 @@
       } finally {
         setBusy(false, status.textContent);
         input.focus();
-        scrollMessagesToBottom();
+        anchorLatestMessage();
       }
     });
 
@@ -548,16 +643,44 @@
       updateModelOptions(providerInput.value);
     });
 
+    const controlsToggle = document.getElementById("controls-toggle");
+    const controlsPanel = document.getElementById("controls-panel");
+    if (controlsToggle && controlsPanel) {
+      controlsToggle.addEventListener("click", () => {
+        const isOpen = controlsPanel.classList.toggle("open");
+        controlsToggle.setAttribute("aria-expanded", String(isOpen));
+      });
+      providerInput.addEventListener("change", () => {
+        if (window.matchMedia("(max-width: 700px)").matches) {
+          controlsPanel.classList.remove("open");
+          controlsToggle.setAttribute("aria-expanded", "false");
+        }
+      });
+      modelInput.addEventListener("change", () => {
+        if (window.matchMedia("(max-width: 700px)").matches) {
+          controlsPanel.classList.remove("open");
+          controlsToggle.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
+    input.addEventListener("focus", () => {
+      anchorLatestMessage();
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", syncViewportHeight, { passive: true });
+      window.visualViewport.addEventListener("scroll", anchorLatestMessage, { passive: true });
+    }
     window.addEventListener("resize", syncViewportHeight, { passive: true });
     window.addEventListener("orientationchange", syncViewportHeight, { passive: true });
-    window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
-    window.visualViewport?.addEventListener("scroll", syncViewportHeight, { passive: true });
 
     async function init() {
       await loadRuntimeConfig();
       syncViewportHeight();
       resizeInput();
       input.focus();
+      anchorLatestMessage();
     }
 
     init();
